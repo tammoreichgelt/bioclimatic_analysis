@@ -1,0 +1,66 @@
+#allgen refers to the taxa in Supplementary Table S2, when running the script make sure column headers correspond to the column names used in the R script
+allgen <- read.csv("ALLGEN.csv")
+#allclim refers to the climate combinations to be tested. In the Salisbury Embayment PETM manuscript, this represents >800k combinations of MAT, CQT, MAP and DMP (the latter two are log-transformed)
+clim <- read.csv("ALLCLIM.csv");
+# testsample represents the plants in the assemblage that the analysis should be run on, should be headed by "sample"
+test <- read.csv("testsample.csv");
+# merge allgen with the sample, so that "q" only contains the plant types in the assemblage
+q <- merge(test, allgen, by.x = "sample", by.y = "genus");
+
+# setup repeat function, calculates probability for each taxon in testsample to occur at each climatic combination in allclim
+result <- data.frame(clim)
+x <- nrow(q)+1
+y <- 1
+
+repeat {
+a <- q[y,]
+norm <- dnorm(clim$mat, mean = a$matm, sd = a$matsd, log = FALSE) * dnorm(clim$coqt, mean = a$coqtm, sd = a$coqtsd, log = FALSE) * dnorm(clim$map, mean = a$mapm, sd = a$mapsd, log = FALSE) * dnorm(clim$dmp, mean = a$dmpm, sd = a$dmpsd, log = FALSE)
+result <- cbind(result,norm)
+y = y+1
+if (y==x){
+break
+}
+}
+
+names(result) <- c("mat","wint","map","dmp",q$sample);
+
+#setup second repeat fucntion, calculates joint probability
+
+z <- 4;
+d <- ncol(result)
+p.dens <- result[,z+1];
+
+repeat{
+z <- z+1
+p.dens <- p.dens * result[,z+1]
+if (z==d-1){
+break
+}
+}
+
+#tabulation of results. p.dens is the absolute probabilities for each climatic combination and p.rel is the probability relative to the maximum probability
+#CI represents the maximum range within 0.05% of the maximum probabilities and av is the climatic combination with the highest probability
+
+p.dens <- data.frame(p.dens);
+result <- cbind(result,p.dens);
+p.rel <- result$p.dens/max(p.dens);
+result <- cbind(result,p.rel);
+CIMAT <- ifelse(result$p.rel>0.05,result$mat,NA);
+CIWT <- ifelse(result$p.rel>0.05,result$wint,NA);
+CIMAP <- ifelse(result$p.rel>0.05,result$map,NA);
+CIDM <- ifelse(result$p.rel>0.05,result$dmp,NA);
+avMAT <- ifelse(result$p.rel==1,result$mat,NA);
+avWT <- ifelse(result$p.rel==1,result$wint,NA);
+avMAP <- ifelse(result$p.rel==1,result$map,NA);
+avDM <- ifelse(result$p.rel==1,result$dmp,NA);
+
+#create final table
+
+h <- c("min MAT", "mean MAT", "max MAT", "min WT", "mean WT", "max WT", "min MAP", "mean MAP", "max MAP", "min DM", "mean DM", "max DM");
+final <- data.frame(min(CIMAT,na.rm=TRUE),max(avMAT,na.rm=TRUE),max(CIMAT,na.rm=TRUE),min(CIWT,na.rm=TRUE),max(avWT,na.rm=TRUE),max(CIWT,na.rm=TRUE),min(CIMAP,na.rm=TRUE),max(avMAP,na.rm=TRUE),max(CIMAP,na.rm=TRUE),min(CIDM,na.rm=TRUE),max(avDM,na.rm=TRUE),max(CIDM,na.rm=TRUE));
+names(final) <- h;
+final
+
+#print test that makes sure all taxa in the test sample were included in the analysis. Check for spelling errors if this final test does not include every taxon in the test sample
+
+t(q$sample)
